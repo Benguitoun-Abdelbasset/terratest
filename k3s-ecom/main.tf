@@ -33,25 +33,29 @@ terraform {
 resource "null_resource" "install_k3s" {
   provisioner "local-exec" {
     command = <<-EOF
-      # Install curl if not present
-      if ! command -v curl >/dev/null 2>&1; then
-        echo ">>> Installing curl..."
-        sudo apt update -y
-        sudo apt install -y curl
-      else
-        echo "curl is already installed."
-      fi
+      echo ">>> Installing prerequisites..."
+      sudo apt update -y
+      sudo apt install -y curl vim htop socat conntrack iptables net-tools
 
-      # Install k3s if not present
+      # Disable swap
+      sudo swapoff -a
+      sudo sed -i '/ swap / s/^/#/' /etc/fstab
+
+      echo ">>> Installing k3s..."
       if ! command -v k3s >/dev/null 2>&1; then
-        echo ">>> Installing k3s..."
         curl -sfL https://get.k3s.io | sudo sh -
       else
-        echo "k3s is already installed."
+        echo "k3s already installed."
       fi
+
+      echo ">>> Waiting for k3s service..."
+      sudo systemctl enable --now k3s
+      sudo systemctl start k3s
+      sudo systemctl status k3s --no-pager
     EOF
   }
 }
+
 
 
 ###########################################
@@ -63,12 +67,12 @@ resource "null_resource" "wait_for_k3s" {
 
   provisioner "local-exec" {
     command = <<-EOF
-      echo ">>> Waiting for kubeconfig..."
-      while [ ! -f /etc/rancher/k3s/k3s.yaml ]; do
+      echo ">>> Waiting for /etc/rancher/k3s/k3s.yaml..."
+      until [ -f /etc/rancher/k3s/k3s.yaml ]; do
         sleep 2
       done
 
-      echo ">>> Waiting for Kubernetes API to be ready..."
+      echo ">>> Waiting for Kubernetes API..."
       export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       until kubectl get nodes >/dev/null 2>&1; do
         sleep 2
