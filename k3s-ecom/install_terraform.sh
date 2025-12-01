@@ -1,51 +1,44 @@
 #!/bin/bash
 
-# --- Terraform Installation Script for Ubuntu 22.04 ---
-# This script installs Terraform from the official HashiCorp APT repository.
+# --- Terraform Installation Script using Snap ---
+# This script installs Terraform using the snap package manager.
 
-echo "Starting Terraform installation on Ubuntu..."
+echo "Starting Terraform installation using Snap..."
 
-# 1. Update package lists and install required dependencies
-echo "1. Installing dependencies..."
+# 1. Update the system's package list
+echo "1. Ensuring system packages are up-to-date..."
 sudo apt update
-if ! sudo apt install -y software-properties-common gnupg2 curl; then
-    echo "Error: Failed to install required dependencies."
+
+# 2. Ensure snapd is installed (standard on Ubuntu 22.04, but good practice)
+echo "2. Checking for and installing snapd if necessary..."
+if ! command -v snap &> /dev/null; then
+    echo "snapd not found. Installing snapd..."
+    if ! sudo apt install -y snapd; then
+        echo "Error: Failed to install snapd."
+        exit 1
+    fi
+    # Wait for snapd to initialize
+    sleep 5
+fi
+
+# 3. Install Terraform via Snap
+# The --classic flag is needed because Terraform requires access outside its sandbox.
+echo "3. Installing Terraform via Snap (using --classic)..."
+if ! sudo snap install terraform --classic; then
+    echo "Error: Failed to install Terraform via Snap."
     exit 1
 fi
 
-# 2. Add HashiCorp GPG key
-echo "2. Adding HashiCorp GPG key..."
-# Fetch the GPG key and de-armor it into the keyrings directory
-if ! curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg; then
-    echo "Error: Failed to add HashiCorp GPG key."
-    exit 1
-fi
-
-# 3. Add the official HashiCorp repository
-echo "3. Adding HashiCorp repository..."
-# Determine the current distribution codename (e.g., 'jammy')
-DISTRO_CODENAME=$(lsb_release -cs)
-# Create the source list file using the secured signing method
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com ${DISTRO_CODENAME} main" | sudo tee /etc/apt/sources.list.d/hashicorp.list > /dev/null
-
-# 4. Update and install Terraform
-echo "4. Installing Terraform..."
-sudo apt update
-if ! sudo apt install -y terraform; then
-    echo "Error: Failed to install Terraform package."
-    exit 1
-fi
-
-# 5. Verify the installation
-echo "5. Verification:"
+# 4. Verify the installation
+echo "4. Verification:"
 if command -v terraform &> /dev/null; then
     echo "-----------------------------------"
-    echo "🎉 Terraform installed successfully!"
+    echo "🎉 Terraform installed successfully via Snap!"
     echo "Installed Version:"
     terraform version
     echo "-----------------------------------"
 else
     echo "-----------------------------------"
-    echo "❌ ERROR: Terraform command not found after installation."
+    echo "❌ ERROR: Terraform command not found after Snap installation."
     echo "-----------------------------------"
 fi
