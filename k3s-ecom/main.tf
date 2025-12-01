@@ -28,9 +28,21 @@ terraform {
 # INSTALL K3S LOCALLY
 ###########################################
 
+
+
 resource "null_resource" "install_k3s" {
   provisioner "local-exec" {
     command = <<-EOF
+      # Install curl if not present
+      if ! command -v curl >/dev/null 2>&1; then
+        echo ">>> Installing curl..."
+        sudo apt update -y
+        sudo apt install -y curl
+      else
+        echo "curl is already installed."
+      fi
+
+      # Install k3s if not present
       if ! command -v k3s >/dev/null 2>&1; then
         echo ">>> Installing k3s..."
         curl -sfL https://get.k3s.io | sudo sh -
@@ -40,6 +52,7 @@ resource "null_resource" "install_k3s" {
     EOF
   }
 }
+
 
 ###########################################
 # WAIT FOR K3S & KUBECONFIG
