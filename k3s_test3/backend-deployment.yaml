@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: ecom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z mysql 3306; do
+              echo "Waiting for MySQL..."
+              sleep 2
+              done
+      containers:
+        - name: backend
+          image: amvdown/ecom-backend:latest
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql:3306/ecom?useSSL=false&allowPublicKeyRetrieval=true"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "user"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "password"
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: "none"
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+#            httpGet:
+ #             path: /actuator/health
+  #            port: 8080
+   #         initialDelaySeconds: 10
+    #        periodSeconds: 5
+          livenessProbe:
+     #       httpGet:
+      #        path: /actuator/health
+       #       port: 8080
+        #    initialDelaySeconds: 20
+         #   periodSeconds: 10
