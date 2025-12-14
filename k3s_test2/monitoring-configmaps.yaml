@@ -1,0 +1,92 @@
+# --- loki-config.yml (as loki-config ConfigMap) ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: monitoring
+data:
+  local-config.yaml: |
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+
+    common:
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+      path_prefix: /loki
+
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /loki/index
+        cache_location: /loki/cache
+
+      filesystem:
+        directory: /loki/chunks
+
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v12
+          index:
+            prefix: index_
+            period: 24h
+
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 72h
+
+
+---
+# --- promtail-config.yml (as promtail-config ConfigMap) ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+data:
+  promtail-config.yml: |
+    server:
+      http_listen_port: 9080
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+
+    scrape_configs:
+      - job_name: spring-backend
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: springboot
+              __path__: /var/log/myapp/backend.log
+
+
+---
+# --- prometheus.yml (as prometheus-config ConfigMap) ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+
+    scrape_configs:
+      - job_name: 'spring-boot'
+        metrics_path: '/actuator/prometheus'
+        # The correct K8s service name and port for the Backend Service in the ecom namespace
+        static_configs:
+          - targets: ['backend.ecom.svc.cluster.local:8080']
+      - job_name: 'prometheus' # Keep a job to monitor Prometheus itself
+        static_configs:
+          - targets: ['localhost:9090']

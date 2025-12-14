@@ -1,0 +1,178 @@
+# --- Persistent Volume Claims (PVCs) ---
+# Used for MySQL data persistence (maps to mysql_data volume in Docker Compose)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: ecom
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi # Adjust size as needed
+
+---
+# --- MySQL Service and Deployment ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: ecom
+  labels:
+    app: mysql
+spec:
+  selector:
+    app: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+  clusterIP: None # Use ClusterIP: None for headless service (often better for stateful services)
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+  namespace: ecom
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: amvdown/ecom-mysql:latest
+          # Assuming the custom image handles the healthcheck and entrypoint logic
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "root"
+            - name: MYSQL_DATABASE
+              value: "ecom"
+            - name: MYSQL_USER
+              value: "user"
+            - name: MYSQL_PASSWORD
+              value: "password"
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+          livenessProbe: # Maps to Docker Compose healthcheck
+            exec:
+              command: ["mysqladmin", "ping", "-h", "localhost"]
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+
+---
+# --- Backend Service and Deployment ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: ecom
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: ecom
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: amvdown/ecom-backend:latest
+          env:
+            # Note: 'mysql' in the URL resolves to the Kubernetes Service 'mysql'
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql:3306/ecom?useSSL=false&allowPublicKeyRetrieval=true"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "user"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "password"
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: "update"
+          ports:
+            - containerPort: 8080
+          # We use init containers or probes for depends_on: service_healthy logic in K8s
+          # A simple restart policy will suffice for local testing.
+
+---
+# --- Frontend Service and Deployment ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: ecom
+  labels:
+    app: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: LoadBalancer # Use LoadBalancer for k3s to expose it on a node port (works well locally)
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  namespace: ecom
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: amvdown/ecom-frontend:latest
+          env:
+            # Note: 'backend' in the URL resolves to the Kubernetes Service 'backend'
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://backend:8080/api/v1"
+          ports:
+            - containerPort: 3000
