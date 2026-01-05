@@ -40,6 +40,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mysql
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -83,6 +84,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mysql
+  namespace: default
 spec:
   selector:
     app: mysql
@@ -105,6 +107,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -141,6 +144,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend
+  namespace: default
 spec:
   selector:
     app: backend
@@ -163,6 +167,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -193,6 +198,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend
+  namespace: default
 spec:
   type: NodePort
   selector:
